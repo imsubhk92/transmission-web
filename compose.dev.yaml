@@ -1,0 +1,25 @@
+# Transmission only, with paths shared with a host-run FastAPI process.
+# Run with: docker compose -f compose.dev.yaml up -d
+name: streamline-dev
+
+services:
+  transmission:
+    image: lscr.io/linuxserver/transmission:4.1.4
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: ${TZ:-Asia/Kolkata}
+      USER: ${TRANSMISSION_USERNAME:-streamline}
+      PASS: ${TRANSMISSION_PASSWORD:-local-development-only}
+      HOST_WHITELIST: localhost
+      STREAMLINE_DOWNLOAD_DIR: ${PWD}/data/downloads
+    ports:
+      - "127.0.0.1:9091:9091"
+      - "51413:51413"
+      - "51413:51413/udp"
+    volumes:
+      - ./data/transmission:/config
+      # Mirror the full host path so RPC download_dir resolves on both sides.
+      - ./data/downloads:${PWD}/data/downloads
+      - ./infra/transmission/10-streamline.sh:/custom-cont-init.d/10-streamline.sh:ro
+    restart: unless-stopped

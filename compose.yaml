@@ -1,0 +1,65 @@
+name: streamline
+
+services:
+  transmission:
+    image: lscr.io/linuxserver/transmission:4.1.4
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: ${TZ:-Asia/Kolkata}
+      USER: ${TRANSMISSION_USERNAME:-streamline}
+      PASS: ${TRANSMISSION_PASSWORD:-local-development-only}
+      HOST_WHITELIST: transmission,localhost
+      STREAMLINE_DOWNLOAD_DIR: /downloads
+    volumes:
+      - transmission-config:/config
+      - downloads:/downloads
+      - ./infra/transmission/10-streamline.sh:/custom-cont-init.d/10-streamline.sh:ro
+    ports:
+      - "51413:51413"
+      - "51413:51413/udp"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:9091/transmission/rpc"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      TRANSMISSION_URL: http://transmission:9091/transmission/rpc
+      TRANSMISSION_USERNAME: ${TRANSMISSION_USERNAME:-streamline}
+      TRANSMISSION_PASSWORD: ${TRANSMISSION_PASSWORD:-local-development-only}
+      DOWNLOAD_DIR: /downloads
+      FRONTEND_DIR: /app/frontend/dist
+      APP_PASSWORD: ${APP_PASSWORD:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-["localhost","127.0.0.1"]}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-["http://localhost:8000","http://127.0.0.1:8000"]}
+    volumes:
+      - downloads:/downloads:ro
+    depends_on:
+      transmission:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  transmission-config:
+  downloads:
